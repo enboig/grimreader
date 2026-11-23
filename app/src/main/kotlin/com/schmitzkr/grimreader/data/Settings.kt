@@ -113,6 +113,10 @@ class Settings internal constructor(private val context: Context, private val ci
     suspend fun comicRtl(bookId: Long): Boolean = store.data.first()[booleanPreferencesKey("comic_rtl_$bookId")] ?: false
     suspend fun setComicRtl(bookId: Long, rtl: Boolean) = store.edit { it[booleanPreferencesKey("comic_rtl_$bookId")] = rtl }
 
+    /** Webtoon mode (one continuous vertical strip) for a comic; like the direction, per book and per device. */
+    suspend fun comicWebtoon(bookId: Long): Boolean = store.data.first()[booleanPreferencesKey("comic_webtoon_$bookId")] ?: false
+    suspend fun setComicWebtoon(bookId: Long, on: Boolean) = store.edit { it[booleanPreferencesKey("comic_webtoon_$bookId")] = on }
+
     /** The EPUB reader's page theme (`light`, `sepia`, `dark`); null follows the app theme. */
     suspend fun epubTheme(): String? = store.data.first()[EPUB_THEME]
     suspend fun setEpubTheme(name: String) = store.edit { it[EPUB_THEME] = name }

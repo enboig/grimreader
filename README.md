@@ -38,7 +38,8 @@ digital library server. Kotlin and Jetpack Compose.
   percentage the web reader uses so both open at the same place
 - Comic (CBX) and PDF readers: pinch to zoom, double-tap, tap the edges to
   turn a page and the middle to hide the controls, page slider,
-  right-to-left reading for manga, night mode for PDFs, progress saved to
+  right-to-left reading for manga, webtoon mode that stacks a comic's
+  pages into one continuous vertical strip, night mode for PDFs, progress saved to
   the server so the web reader opens on the same page
 - Download any book for offline use: audiobooks play, EPUB, FB2 and PDF
   open in their readers and comics keep every page, all from the device
