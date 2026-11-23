@@ -29,6 +29,8 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.rounded.FormatTextdirectionLToR
 import androidx.compose.material.icons.rounded.FormatTextdirectionRToL
+import androidx.compose.material.icons.rounded.ViewCarousel
+import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,6 +112,8 @@ data class ReaderUiState(
     val initialIndex: Int = 0,
     val index: Int = 0,
     val rtl: Boolean = false,
+    /** Comics only: one continuous vertical strip instead of pages turned sideways. */
+    val webtoon: Boolean = false,
     val night: Boolean = false,
     val exiting: Boolean = false,
     val syncError: String? = null,
@@ -163,6 +167,7 @@ class PageReaderViewModel @Inject constructor(
             val book = runCatching { books.book(bookId) }.getOrElse { downloads.record(bookId)?.book ?: throw it }
             bookFileId = book.fileIdFor(format)
             val rtl = if (format == PageFormat.CBX) settings.comicRtl(bookId) else false
+            val webtoon = if (format == PageFormat.CBX) settings.comicWebtoon(bookId) else false
             val night = settings.readerNight()
             val source = when (format) {
                 PageFormat.CBX -> {
@@ -190,7 +195,7 @@ class PageReaderViewModel @Inject constructor(
                 onError = { e -> state.update { it.copy(syncError = friendlyError(e)) } },
             )
             state.update {
-                it.copy(loading = false, title = book.title, source = source, initialIndex = initial, index = initial, rtl = rtl, night = night)
+                it.copy(loading = false, title = book.title, source = source, initialIndex = initial, index = initial, rtl = rtl, webtoon = webtoon, night = night)
             }
             foreground()
         }.onFailure { e -> state.update { it.copy(loading = false, error = friendlyError(e)) } }
@@ -231,6 +236,12 @@ class PageReaderViewModel @Inject constructor(
         val rtl = !state.value.rtl
         state.update { it.copy(rtl = rtl) }
         settings.setComicRtl(bookId, rtl)
+    }
+
+    fun toggleWebtoon() = viewModelScope.launch {
+        val webtoon = !state.value.webtoon
+        state.update { it.copy(webtoon = webtoon) }
+        settings.setComicWebtoon(bookId, webtoon)
     }
 
     fun toggleNight() = viewModelScope.launch {
@@ -331,9 +342,24 @@ fun PageReaderScreen(
         when {
             state.loading -> LoadingState()
             state.error != null -> ErrorState(state.error!!, onRetry = vm::retry)
+            state.source != null && state.webtoon && state.source is PageSource.Comic -> {
+                val jump by vm.jumpTo.collectAsStateWithLifecycle()
+                WebtoonStrip(
+                    urls = (state.source as PageSource.Comic).urls,
+                    // The page last on screen, so switching modes keeps the reader's place.
+                    initialIndex = state.index,
+                    jumpTo = jump,
+                    onJumped = vm::jumped,
+                    onPageChanged = vm::pageChanged,
+                    onToggleChrome = { chrome = !chrome },
+                    volumeKeys = vm.volumeKeys,
+                )
+            }
             state.source != null -> {
                 val source = state.source!!
-                val pager = rememberPagerState(initialPage = state.initialIndex) { source.count }
+                // The page last on screen, not the one the book opened at, so
+                // leaving webtoon mode lands on the same page.
+                val pager = rememberPagerState(initialPage = state.index) { source.count }
                 VolumeKeyPaging(vm.volumeKeys) { forward ->
                     val target = if (forward) pager.currentPage + 1 else pager.currentPage - 1
                     scope.launch { pager.animateScrollToPage(target.coerceIn(0, source.count - 1)) }
@@ -393,7 +419,11 @@ fun PageReaderScreen(
             ReaderBar(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp)) {
                 IconButton(onClick = exit) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 Text(state.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (format == PageFormat.CBX) IconButton(onClick = vm::toggleRtl) {
+                if (format == PageFormat.CBX) IconButton(onClick = vm::toggleWebtoon) {
+                    Icon(if (state.webtoon) Icons.Rounded.ViewDay else Icons.Rounded.ViewCarousel, "Reading mode")
+                }
+                // Direction means nothing to a strip read top to bottom.
+                if (format == PageFormat.CBX && !state.webtoon) IconButton(onClick = vm::toggleRtl) {
                     Icon(if (state.rtl) Icons.Rounded.FormatTextdirectionRToL else Icons.Rounded.FormatTextdirectionLToR, "Reading direction")
                 }
                 if (format == PageFormat.PDF) IconButton(onClick = vm::toggleNight) {
